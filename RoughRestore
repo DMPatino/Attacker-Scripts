@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Function to restore renamed commands
+restore_command() {
+    local new_cmd="$1"
+    local original_cmd="$2"
+
+    if [[ -f "/usr/bin/$new_cmd" ]]; then
+        echo "Restoring $original_cmd from $new_cmd..."
+        sudo mv "/usr/bin/$new_cmd" "/usr/bin/$original_cmd"
+    else
+        echo "No backup for $original_cmd found as $new_cmd."
+    fi
+}
+
+# Function to reinstall missing binaries
+reinstall_command() {
+    local pkg="$1"
+    echo "Reinstalling package providing $pkg..."
+    sudo apt-get install --reinstall -y "$pkg"
+}
+
+# Function to remove a user
+remove_user_if_created() {
+    local username="$1"
+    if id "$username" &>/dev/null; then
+        echo "Do you want to remove user '$username'? (y/n)"
+        read -r answer
+        if [[ $answer == "y" || $answer == "Y" ]]; then
+            sudo deluser --remove-home "$username"
+            echo "User '$username' removed."
+        fi
+    fi
+}
+
+# Restore renamed commands
+restore_command "why" "who"
+restore_command "ness" "netstat"
+restore_command "eq" "ps"
+
+# Reinstall overwritten commands
+reinstall_command "procps"     # for ps, w
+reinstall_command "coreutils"  # for id, uptime
+reinstall_command "util-linux" # for last
+reinstall_command "iproute2"   # for ss
+reinstall_command "net-tools"  # for netstat (optional depending on distro)
+
+# Restore shell for mail and games users
+echo "Restoring 'mail' user shell to /usr/sbin/nologin..."
+sudo usermod -s /usr/sbin/nologin mail
+
+echo "Restoring 'games' user shell to /usr/sbin/nologin..."
+sudo usermod -s /usr/sbin/nologin games
+
+# Prompt to remove manually created sudo users (up to 4)
+echo "If you created users with sudo privileges earlier, you can remove them now."
+for i in {1..4}; do
+    echo "Enter the username to check for removal (or press ENTER to skip):"
+    read -r user_input
+    [[ -z "$user_input" ]] && break
+    remove_user_if_created "$user_input"
+done
+
+# Clear shell history
+echo "Clearing shell history..."
+unset HISTFILE
+export HISTSIZE=0
+history -c
+
+echo "Restore complete."
